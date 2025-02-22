@@ -54,7 +54,7 @@ set "minChoice=1"
 set "maxArray=%count%"
 
 
-set "commands[1]=wt -w 0 -d !home!xmrig --title !s[1]! --tabColor #f1c40f cmd /k xmrig.exe -o rx.unmineable.com:3333 -a rx -k -u DOGE:DSycjXnngRekwJKRQKXJwY88GPw4w9FmQA.DELL -p x"
+set "commands[1]=wt -w 0 -d !home!xmrig --title !s[1]! --tabColor #f1c40f cmd /k xmrig.exe -o rx.unmineable.com:3333 -a rx -k -u DOGE:DSycjXnngRekwJKRQKXJwY88GPw4w9FmQA.DELL -p x --threads 2"
 set "commands[2]=wt -w 0 -d !home!ismaya\apacheKafka --title !s[2]! --tabColor #1abc9c cmd /k bin\windows\zookeeper-server-start.bat config\zookeeper.properties"
 set "commands[3]=wt -w 0 -d !home!ismaya\apacheKafka --title !s[3]! --tabColor #16a085 cmd /k bin\windows\kafka-server-start.bat config\server.properties"
 set "commands[4]=wt -w 0 -d !home!lolMiner --title !s[1]! --tabColor #f1c40f cmd /k lolMiner.exe --algo ETCHASH --pool etchash.unmineable.com:3333 --user DOGE:DSycjXnngRekwJKRQKXJwY88GPw4w9FmQA.DELL --ethstratum ETHPROXY"
@@ -85,7 +85,7 @@ echo [1] Running Semua
 echo [2] Running Service Wajib
 echo [3] Running Service Tertentu
 echo [4] Clean Kafka Temp And Fixing 
-echo [5] Mining CPU Om
+echo [5] Mining CPU Om 2 threads
 echo [6] Mining GPU Om
 echo [q] Capek Om !!!  
 echo ================================== FAST TM ==========================================
