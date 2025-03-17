@@ -12,7 +12,7 @@ oke you run this commant in foldet xmrig windows or linux
 
 
 ```
-xmrig.exe -o rx.unmineable.com:3333 -a rx -k -u DOGE:DSycjXnngRekwJKRQKXJwY88GPw4w9FmQA.DELL -p x --threads=2 --cpu-affinity=0xC0 --cpu-priority=5 --huge-pages-jit --print-time=1 --health-print-time=10 --donate-level=0
+xmrig.exe -o rx.unmineable.com:3333 -a rx -k -u DOGE:DSycjXnngRekwJKRQKXJwY88GPw4w9FmQA.DELL -p x --threads=2  --cpu-priority=5 --huge-pages-jit --print-time=1 --health-print-time=10 --donate-level=0 --threads=2  --cpu-priority=5 --cpu-affinity=0xC0
 ```
 
 
