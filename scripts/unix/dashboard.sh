@@ -116,6 +116,44 @@ autostart_status() {
   fi
 }
 
+service_name() {
+  if [[ "$UNAME_S" == "Darwin" ]]; then
+    printf '%s\n' "com.fast.mining-portable"
+  else
+    printf '%s\n' "mining-portable.service"
+  fi
+}
+
+is_service_configured() {
+  if [[ "$UNAME_S" == "Darwin" ]]; then
+    [[ -f "$HOME/Library/LaunchAgents/com.fast.mining-portable.plist" ]]
+  else
+    [[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/mining-portable.service" ]]
+  fi
+}
+
+service_running() {
+  if [[ "$UNAME_S" == "Darwin" ]]; then
+    launchctl print "gui/$(id -u)/com.fast.mining-portable" >/dev/null 2>&1
+  else
+    systemctl --user is-active --quiet mining-portable.service
+  fi
+}
+
+miner_running() {
+  pgrep -f "$XMRIG_UNIX_BIN|$LOLMINER_UNIX_BIN" >/dev/null 2>&1
+}
+
+miner_status() {
+  if service_running; then
+    printf '%brunning via autostart%b' "$C_OK" "$C_RESET"
+  elif miner_running; then
+    printf '%brunning manually%b' "$C_OK" "$C_RESET"
+  else
+    printf '%boff%b' "$C_WARN" "$C_RESET"
+  fi
+}
+
 detect_logical_cpu() {
   if [[ "$UNAME_S" == "Darwin" ]]; then
     sysctl -n hw.logicalcpu 2>/dev/null || echo 4
@@ -326,6 +364,7 @@ show_current_config() {
   panel_title "Tools"
   status_line "XMRig" "$(binary_status "$XMRIG_UNIX_BIN")  $(short_text "$XMRIG_UNIX_BIN" 36)" "$C_VALUE"
   status_line "lolMiner" "$(binary_status "$LOLMINER_UNIX_BIN")  $(short_text "$LOLMINER_UNIX_BIN" 36)" "$C_VALUE"
+  status_line "Miner status" "$(miner_status)" "$C_VALUE"
   status_line "Config file" "$(short_text "$ENV_FILE" 38)" "$C_VALUE"
   hr
 }
@@ -430,6 +469,118 @@ update_xmrig_now() {
   fi
 }
 
+show_running_miners() {
+  local processes
+  processes=$(pgrep -af "$XMRIG_UNIX_BIN|$LOLMINER_UNIX_BIN" || true)
+  if [[ -n "$processes" ]]; then
+    printf "%sProses miner aktif:%s\n" "$C_OK" "$C_RESET"
+    printf "%s\n" "$processes"
+  else
+    printf "%sTidak ada proses miner yang sedang jalan.%s\n" "$C_WARN" "$C_RESET"
+  fi
+}
+
+latest_xmrig_log_line() {
+  local pattern="$1"
+  if [[ "$UNAME_S" == "Darwin" ]]; then
+    return 1
+  fi
+  journalctl --user -u mining-portable.service -n 300 --no-pager 2>/dev/null | grep -E "$pattern" | tail -n 1
+}
+
+show_xmrig_stats() {
+  local hashrate_line results_line
+  clear_screen
+  panel_title "XMRig Stats"
+  hr
+
+  if ! service_running; then
+    show_running_miners
+    printf "\n"
+    if miner_running; then
+      printf "%sMiner berjalan manual.%s Hashrate dan results detail tersedia di terminal asal proses itu dijalankan.\n" "$C_WARN" "$C_RESET"
+    else
+      printf "%sTidak ada miner yang sedang jalan.%s\n" "$C_WARN" "$C_RESET"
+    fi
+    return
+  fi
+
+  if [[ "$UNAME_S" == "Darwin" ]]; then
+    printf "%sRingkasan hashrate/results otomatis belum saya aktifkan untuk macOS.%s Gunakan menu log mining untuk lihat output live.\n" "$C_WARN" "$C_RESET"
+    return
+  fi
+
+  hashrate_line=$(latest_xmrig_log_line "speed 10s/60s/15m|miner[[:space:]]+speed")
+  results_line=$(latest_xmrig_log_line "results:|accepted \\(|rejected \\(|invalid \\(")
+
+  if [[ -n "$hashrate_line" ]]; then
+    printf "%sHashrate terakhir:%s\n%s\n\n" "$C_OK" "$C_RESET" "$hashrate_line"
+  else
+    printf "%sHashrate terakhir belum ditemukan di log.%s Tunggu sampai XMRig mencetak statistik periodik.\n\n" "$C_WARN" "$C_RESET"
+  fi
+
+  if [[ -n "$results_line" ]]; then
+    printf "%sResults terakhir:%s\n%s\n" "$C_OK" "$C_RESET" "$results_line"
+  else
+    printf "%sResults terakhir belum ditemukan di log.%s Tunggu sampai ada accepted/rejected share.\n" "$C_WARN" "$C_RESET"
+  fi
+}
+
+show_mining_logs() {
+  clear_screen
+  panel_title "Mining Logs"
+  hr
+
+  if service_running; then
+    printf "%sService aktif:%s %s%s%s\n" "$C_OK" "$C_RESET" "$C_VALUE" "$(service_name)" "$C_RESET"
+    printf "%sTekan Ctrl+C untuk keluar dari log live.%s\n\n" "$C_DIM" "$C_RESET"
+    if [[ "$UNAME_S" == "Darwin" ]]; then
+      log stream --style compact --predicate 'process == "xmrig" || process == "lolMiner"' || true
+    else
+      journalctl --user -u mining-portable.service -f
+    fi
+    return
+  fi
+
+  show_running_miners
+  printf "\n"
+  if miner_running; then
+    printf "%sMiner berjalan manual.%s Log live hanya tersedia di terminal asal proses itu dijalankan.\n" "$C_WARN" "$C_RESET"
+  elif is_service_configured; then
+    printf "%sAutostart terpasang tetapi servicenya sedang tidak aktif.%s\n" "$C_WARN" "$C_RESET"
+  else
+    printf "%sAutostart belum aktif dan tidak ada proses miner aktif.%s\n" "$C_WARN" "$C_RESET"
+  fi
+}
+
+restart_autostart_mining() {
+  clear_screen
+  panel_title "Restart Autostart Mining"
+  hr
+
+  if ! is_service_configured; then
+    printf "%sAutostart belum dikonfigurasi.%s Tidak ada mining autostart yang bisa direstart.\n" "$C_WARN" "$C_RESET"
+    return
+  fi
+
+  if ! service_running; then
+    if miner_running; then
+      printf "%sAutostart terpasang tetapi servicenya sedang tidak aktif.%s Miner yang terdeteksi tampaknya berjalan manual, jadi restart autostart dilewati.\n" "$C_WARN" "$C_RESET"
+    else
+      printf "%sTidak ada mining autostart yang sedang jalan.%s Restart dilewati.\n" "$C_WARN" "$C_RESET"
+    fi
+    return
+  fi
+
+  if [[ "$UNAME_S" == "Darwin" ]]; then
+    launchctl kickstart -k "gui/$(id -u)/$(service_name)"
+  else
+    systemctl --user restart mining-portable.service
+  fi
+
+  printf "%sMining autostart berhasil direstart.%s\n" "$C_OK" "$C_RESET"
+}
+
 pause_to_dashboard() {
   if [[ -t 0 && -t 1 ]]; then
     printf "\n%sTekan Enter untuk kembali ke dashboard...%s" "$C_DIM" "$C_RESET"
@@ -442,6 +593,9 @@ main_menu() {
     "Setup / ubah config" \
     "Pilih profile tersimpan" \
     "Jalankan mining sekarang" \
+    "Lihat log mining" \
+    "Lihat hashrate / results" \
+    "Restart mining autostart" \
     "Update XMRig" \
     "Autostart on/off" \
     "Keluar"
@@ -459,6 +613,15 @@ while true; do
       ;;
     "Jalankan mining sekarang")
       run_profile_now
+      ;;
+    "Lihat log mining")
+      show_mining_logs
+      ;;
+    "Lihat hashrate / results")
+      show_xmrig_stats
+      ;;
+    "Restart mining autostart")
+      restart_autostart_mining
       ;;
     "Update XMRig")
       update_xmrig_now
