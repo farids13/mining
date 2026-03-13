@@ -200,16 +200,16 @@ choose_option() {
     CHOOSE_INDEX="$selected"
     show_menu_frame "$title" "${options[@]}"
 
-    IFS= read -rsn1 key
+    IFS= read -rsn1 key < /dev/tty
     if [[ "$key" == $'\x1b' ]]; then
-      IFS= read -rsn2 key || true
+      IFS= read -rsn2 key < /dev/tty || true
       case "$key" in
         '[A')
-          ((selected--))
+          selected=$((selected - 1))
           if (( selected < 0 )); then selected=$((${#options[@]} - 1)); fi
           ;;
         '[B')
-          ((selected++))
+          selected=$((selected + 1))
           if (( selected >= ${#options[@]} )); then selected=0; fi
           ;;
       esac
@@ -338,8 +338,8 @@ setup_profile() {
   RIG_ID=$(prompt_default "Rig ID (opsional)" "$RIG_ID")
   choose_option "Pilih mode XMRig" "profile" "cli"
   RUN_MODE="$CHOOSE_RESULT"
-  mode_choice=$(choose_option "Pilih default mode" "cpu" "gpu" "both")
-  AUTOSTART_PROFILE="$mode_choice"
+  choose_option "Pilih default mode" "cpu" "gpu" "both"
+  AUTOSTART_PROFILE="$CHOOSE_RESULT"
   POOL_CPU=$(prompt_default "CPU pool" "$POOL_CPU")
   POOL_GPU=$(prompt_default "GPU pool" "$POOL_GPU")
   choose_option "Pilih tenaga CPU" "full" "half" "quarter" "custom"
@@ -467,13 +467,3 @@ while true; do
   esac
   pause_to_dashboard
 done
-short_text() {
-  local text="$1"
-  local max_len="${2:-42}"
-  local text_len=${#text}
-  if (( text_len <= max_len )); then
-    printf '%s\n' "$text"
-    return
-  fi
-  printf '%s...%s\n' "${text:0:18}" "${text:text_len-18}"
-}
