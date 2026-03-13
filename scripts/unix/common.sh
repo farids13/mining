@@ -50,6 +50,18 @@ load_env_file() {
   done < "$file_path"
 }
 
+is_placeholder_value() {
+  value="${1:-}"
+  case "$value" in
+    "" | "REPLACE_WITH_YOUR_WALLET")
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 load_env_file "$GLOBAL_ENV_FILE"
 load_env_file "$ENV_FILE"
 
@@ -59,11 +71,18 @@ load_env_file "$ENV_FILE"
 
 profile_file="$PROFILE_DIR/$PROFILE_NAME.env"
 if [ "$RUN_MODE" = "profile" ] && [ -f "$profile_file" ]; then
+  BASE_WALLET="${WALLET:-}"
   load_env_file "$profile_file"
+  if is_placeholder_value "${WALLET:-}" && ! is_placeholder_value "$BASE_WALLET"; then
+    WALLET="$BASE_WALLET"
+  fi
 fi
 
 : "${COIN:?COIN wajib diisi di config/miner.env atau config.local/miner.env}"
-: "${WALLET:?WALLET wajib diisi di config/miner.env atau config.local/miner.env}"
+if is_placeholder_value "${WALLET:-}"; then
+  echo "WALLET wajib diisi dengan alamat wallet asli di config.local/miner.env atau config.local/profiles/$PROFILE_NAME.env" >&2
+  exit 1
+fi
 
 [ -n "${WORKER_NAME:-}" ] || WORKER_NAME=$(hostname)
 [ -n "${LOL_WORKER_NAME:-}" ] || LOL_WORKER_NAME="$WORKER_NAME"
