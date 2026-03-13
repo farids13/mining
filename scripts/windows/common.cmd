@@ -2,12 +2,28 @@
 
 set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%..\..") do set "ROOT=%%~fI"
+set "GLOBAL_ENV_FILE=%ROOT%\config\miner.env"
 set "ENV_FILE=%ROOT%\config.local\miner.env"
 
+if not exist "%GLOBAL_ENV_FILE%" (
+    copy /Y "%ROOT%\config\miner.env.example" "%GLOBAL_ENV_FILE%" >nul
+)
+
 if not exist "%ENV_FILE%" (
-    echo File config lokal belum ada: "%ENV_FILE%"
-    echo Copy "%ROOT%\config\miner.env.example" ke "%ENV_FILE%" lalu isi wallet dan profile device.
-    exit /b 1
+    if not exist "%ROOT%\config.local" mkdir "%ROOT%\config.local"
+    copy /Y "%GLOBAL_ENV_FILE%" "%ENV_FILE%" >nul
+)
+
+for /f "usebackq tokens=1,* delims==" %%A in ("%GLOBAL_ENV_FILE%") do (
+    set "KEY=%%~A"
+    set "VALUE=%%~B"
+    if defined KEY (
+        if not "!KEY:~0,1!"=="#" (
+            if not "!KEY:~0,1!"==";" (
+                set "!KEY!=!VALUE!"
+            )
+        )
+    )
 )
 
 for /f "usebackq tokens=1,* delims==" %%A in ("%ENV_FILE%") do (
@@ -23,12 +39,12 @@ for /f "usebackq tokens=1,* delims==" %%A in ("%ENV_FILE%") do (
 )
 
 if not defined COIN (
-    echo COIN wajib diisi di "%ENV_FILE%"
+    echo COIN wajib diisi di "%GLOBAL_ENV_FILE%" atau "%ENV_FILE%"
     exit /b 1
 )
 
 if not defined WALLET (
-    echo WALLET wajib diisi di "%ENV_FILE%"
+    echo WALLET wajib diisi di "%GLOBAL_ENV_FILE%" atau "%ENV_FILE%"
     exit /b 1
 )
 

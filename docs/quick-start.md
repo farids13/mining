@@ -44,9 +44,21 @@ Saat `./run.sh` dijalankan pertama kali, repo akan otomatis membuat:
 
 - [miner.env](../config.local/miner.env)
 
-dari template:
+dari basis global:
+
+- [miner.env](../config/miner.env)
+
+Jika basis global belum ada, repo akan membuatnya dari template:
 
 - [miner.env.example](../config/miner.env.example)
+
+Yang berlaku untuk semua OS sebaiknya disimpan di:
+
+- [miner.env](../config/miner.env)
+
+Yang hanya perlu berbeda per desktop simpan di:
+
+- [miner.env](../config.local/miner.env)
 
 Yang perlu Anda sesuaikan per desktop:
 
@@ -181,6 +193,7 @@ Panduan detailnya ada di:
 
 Target repo ini adalah mempermudah pindah environment desktop. Saat repo dipindah, yang umumnya perlu dicek hanya:
 
+- [miner.env](../config/miner.env)
 - [miner.env](../config.local/miner.env)
 
 Yang biasanya berubah antar desktop:

@@ -41,6 +41,17 @@ hr() {
   printf "%s────────────────────────────────────────────────────────%s\n" "$C_PANEL" "$C_RESET"
 }
 
+short_text() {
+  local text="$1"
+  local max_len="${2:-42}"
+  local text_len=${#text}
+  if (( text_len <= max_len )); then
+    printf '%s' "$text"
+    return
+  fi
+  printf '%s...%s' "${text:0:18}" "${text:text_len-18}"
+}
+
 clear_screen() {
   if [[ -t 1 ]]; then
     printf '\033[2J\033[H'
@@ -56,6 +67,28 @@ status_line() {
   local value="$2"
   local color="$3"
   printf "%s%-18s%s %b%s%b\n" "$C_LABEL" "$label" "$C_RESET" "$color" "$value" "$C_RESET"
+}
+
+show_menu_frame() {
+  local title="$1"
+  shift
+  local options=("$@")
+  local selected="${CHOOSE_INDEX:-0}"
+
+  show_current_config
+  panel_title "$title"
+  printf "%sGunakan panah atas/bawah lalu Enter untuk memilih.%s\n" "$C_DIM" "$C_RESET"
+  hr
+
+  local i
+  for i in "${!options[@]}"; do
+    if [[ "$i" -eq "$selected" ]]; then
+      printf "%b> %s%b\n" "$C_SELECT" "${options[$i]}" "$C_RESET"
+    else
+      printf "  %s\n" "${options[$i]}"
+    fi
+  done
+  hr
 }
 
 binary_status() {
@@ -110,6 +143,40 @@ calc_threads_from_percent() {
   echo "$threads"
 }
 
+detect_cpu_power_mode() {
+  local total_cpu current_threads
+  total_cpu=$(detect_logical_cpu)
+  current_threads="${XMRIG_THREADS:-1}"
+  if (( current_threads >= total_cpu )); then
+    printf '%s\n' "full"
+  elif (( current_threads * 2 >= total_cpu )); then
+    printf '%s\n' "half"
+  elif (( current_threads * 4 >= total_cpu )); then
+    printf '%s\n' "quarter"
+  else
+    printf '%s\n' "custom"
+  fi
+}
+
+apply_cpu_power_mode() {
+  local mode="$1"
+  local total_cpu
+  total_cpu=$(detect_logical_cpu)
+  case "$mode" in
+    full)
+      XMRIG_THREADS="$total_cpu"
+      ;;
+    half)
+      XMRIG_THREADS=$((total_cpu / 2))
+      if (( XMRIG_THREADS < 1 )); then XMRIG_THREADS=1; fi
+      ;;
+    quarter)
+      XMRIG_THREADS=$((total_cpu / 4))
+      if (( XMRIG_THREADS < 1 )); then XMRIG_THREADS=1; fi
+      ;;
+  esac
+}
+
 prompt_default() {
   local label="$1"
   local current="$2"
@@ -130,23 +197,8 @@ choose_option() {
   local key
 
   while true; do
-    clear_screen
-    panel_title "MINING CONTROL CENTER"
-    printf "%sPortable desktop miner setup%s\n" "$C_DIM" "$C_RESET"
-    hr
-    panel_title "$title"
-    printf "%sGunakan panah atas/bawah lalu Enter untuk memilih.%s\n" "$C_DIM" "$C_RESET"
-    hr
-
-    local i
-    for i in "${!options[@]}"; do
-      if [[ "$i" -eq "$selected" ]]; then
-        printf "%b> %s%b\n" "$C_SELECT" "${options[$i]}" "$C_RESET" >&2
-      else
-        printf "  %s\n" "${options[$i]}" >&2
-      fi
-    done
-    hr >&2
+    CHOOSE_INDEX="$selected"
+    show_menu_frame "$title" "${options[@]}"
 
     IFS= read -rsn1 key
     if [[ "$key" == $'\x1b' ]]; then
@@ -256,24 +308,26 @@ show_current_config() {
   hr
   panel_title "Profile"
   status_line "Coin" "$COIN" "$C_VALUE"
-  status_line "Wallet" "$WALLET" "$C_VALUE"
+  status_line "Wallet" "$(short_text "$WALLET" 26)" "$C_VALUE"
   status_line "Worker" "$WORKER_NAME" "$C_VALUE"
   status_line "Default mode" "$AUTOSTART_PROFILE" "$C_HOT"
   status_line "Run mode" "$RUN_MODE" "$C_HOT"
   status_line "Active profile" "$PROFILE_NAME" "$C_VALUE"
+  status_line "CPU mode" "$(detect_cpu_power_mode)" "$C_HOT"
   status_line "CPU pool" "$POOL_CPU" "$C_VALUE"
   status_line "CPU threads" "$XMRIG_THREADS" "$C_HOT"
+  status_line "CPU priority" "$XMRIG_CPU_PRIORITY" "$C_HOT"
   status_line "GPU pool" "$POOL_GPU" "$C_VALUE"
   hr
   panel_title "Tools"
-  status_line "XMRig" "$(binary_status "$XMRIG_UNIX_BIN")  $XMRIG_UNIX_BIN" "$C_VALUE"
-  status_line "lolMiner" "$(binary_status "$LOLMINER_UNIX_BIN")  $LOLMINER_UNIX_BIN" "$C_VALUE"
-  status_line "Config file" "$ENV_FILE" "$C_VALUE"
+  status_line "XMRig" "$(binary_status "$XMRIG_UNIX_BIN")  $(short_text "$XMRIG_UNIX_BIN" 36)" "$C_VALUE"
+  status_line "lolMiner" "$(binary_status "$LOLMINER_UNIX_BIN")  $(short_text "$LOLMINER_UNIX_BIN" 36)" "$C_VALUE"
+  status_line "Config file" "$(short_text "$ENV_FILE" 38)" "$C_VALUE"
   hr
 }
 
 setup_profile() {
-  local total_cpu cpu_percent percent_default mode_choice
+  local total_cpu cpu_percent percent_default mode_choice cpu_power_mode
   total_cpu=$(detect_logical_cpu)
   panel_title "Setup Wizard"
   printf "%sIsi kosong untuk pakai nilai lama.%s\n" "$C_DIM" "$C_RESET"
@@ -288,10 +342,17 @@ setup_profile() {
   AUTOSTART_PROFILE="$mode_choice"
   POOL_CPU=$(prompt_default "CPU pool" "$POOL_CPU")
   POOL_GPU=$(prompt_default "GPU pool" "$POOL_GPU")
-  percent_default=$((XMRIG_THREADS * 100 / total_cpu))
-  cpu_percent=$(prompt_default "Pakai CPU berapa persen (1-100)" "$percent_default")
-  XMRIG_THREADS=$(calc_threads_from_percent "$cpu_percent")
-  XMRIG_CPU_PRIORITY=$(prompt_default "CPU priority" "$XMRIG_CPU_PRIORITY")
+  choose_option "Pilih tenaga CPU" "full" "half" "quarter" "custom"
+  cpu_power_mode="$CHOOSE_RESULT"
+  if [[ "$cpu_power_mode" == "custom" ]]; then
+    percent_default=$((XMRIG_THREADS * 100 / total_cpu))
+    cpu_percent=$(prompt_default "Pakai CPU berapa persen (1-100)" "$percent_default")
+    XMRIG_THREADS=$(calc_threads_from_percent "$cpu_percent")
+  else
+    apply_cpu_power_mode "$cpu_power_mode"
+  fi
+  choose_option "Pilih CPU priority" "1" "2" "3" "4" "5"
+  XMRIG_CPU_PRIORITY="$CHOOSE_RESULT"
   XMRIG_CPU_AFFINITY=$(prompt_default "CPU affinity hex (opsional)" "$XMRIG_CPU_AFFINITY")
   if [[ "$RUN_MODE" == "cli" ]]; then
     XMRIG_CLI_ARGS=$(prompt_default "XMRig CLI args" "$XMRIG_CLI_ARGS")
@@ -406,3 +467,13 @@ while true; do
   esac
   pause_to_dashboard
 done
+short_text() {
+  local text="$1"
+  local max_len="${2:-42}"
+  local text_len=${#text}
+  if (( text_len <= max_len )); then
+    printf '%s\n' "$text"
+    return
+  fi
+  printf '%s...%s\n' "${text:0:18}" "${text:text_len-18}"
+}

@@ -2,15 +2,20 @@
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
+GLOBAL_ENV_FILE="$ROOT/config/miner.env"
 ENV_FILE="$ROOT/config.local/miner.env"
 PROFILE_DIR="$ROOT/config.local/profiles"
 UNAME_S=$(uname -s)
 
+if [ ! -f "$GLOBAL_ENV_FILE" ]; then
+  cp "$ROOT/config/miner.env.example" "$GLOBAL_ENV_FILE"
+fi
+
 if [ ! -f "$ENV_FILE" ]; then
   mkdir -p "$(dirname "$ENV_FILE")"
-  cp "$ROOT/config/miner.env.example" "$ENV_FILE"
+  cp "$GLOBAL_ENV_FILE" "$ENV_FILE"
   echo "Config lokal dibuat otomatis: $ENV_FILE" >&2
-  echo "Silakan lengkapi wallet dan profile device dari dashboard." >&2
+  echo "Basis config global diambil dari: $GLOBAL_ENV_FILE" >&2
 fi
 
 load_env_file() {
@@ -45,6 +50,7 @@ load_env_file() {
   done < "$file_path"
 }
 
+load_env_file "$GLOBAL_ENV_FILE"
 load_env_file "$ENV_FILE"
 
 [ -n "${RUN_MODE:-}" ] || RUN_MODE="profile"
@@ -56,8 +62,8 @@ if [ "$RUN_MODE" = "profile" ] && [ -f "$profile_file" ]; then
   load_env_file "$profile_file"
 fi
 
-: "${COIN:?COIN wajib diisi di config.local/miner.env}"
-: "${WALLET:?WALLET wajib diisi di config.local/miner.env}"
+: "${COIN:?COIN wajib diisi di config/miner.env atau config.local/miner.env}"
+: "${WALLET:?WALLET wajib diisi di config/miner.env atau config.local/miner.env}"
 
 [ -n "${WORKER_NAME:-}" ] || WORKER_NAME=$(hostname)
 [ -n "${LOL_WORKER_NAME:-}" ] || LOL_WORKER_NAME="$WORKER_NAME"
@@ -87,4 +93,4 @@ export ROOT ENV_FILE UNAME_S COIN WALLET PASSWORD WORKER_NAME LOL_WORKER_NAME AU
 export POOL_CPU ALGO_CPU POOL_GPU ALGO_GPU
 export XMRIG_THREADS XMRIG_CPU_PRIORITY XMRIG_PRINT_TIME XMRIG_HEALTH_PRINT_TIME
 export XMRIG_DONATE_LEVEL XMRIG_HUGE_PAGES_JIT LOL_API_PORT XMRIG_UNIX_BIN LOLMINER_UNIX_BIN
-export PROFILE_DIR RUN_MODE PROFILE_NAME XMRIG_CLI_ARGS
+export GLOBAL_ENV_FILE PROFILE_DIR RUN_MODE PROFILE_NAME XMRIG_CLI_ARGS

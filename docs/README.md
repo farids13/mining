@@ -17,7 +17,8 @@ Repo ini tidak didesain untuk bergantung pada satu desktop tertentu. Struktur ya
 - binary per OS
 - launcher per OS
 - logika Unix bersama untuk Linux dan macOS
-- satu titik pengaturan device
+- satu basis config global untuk semua OS
+- override lokal per desktop bila diperlukan
 - mode jalan manual atau autostart
 
 ## Target Environment Desktop
@@ -76,5 +77,6 @@ https://github.com/xmrig/xmrig/releases/download/v6.25.0/xmrig-6.25.0-macos-arm6
 - [scripts/macos/update-xmrig.sh](../scripts/macos/update-xmrig.sh)
 - [scripts/linux/update-xmrig.sh](../scripts/linux/update-xmrig.sh)
 - [miner.env.example](../config/miner.env.example)
-- [miner.env](../config.local/miner.env)
+- [miner.env](../config/miner.env)
+- [miner.env local](../config.local/miner.env)
 - [README.MD](../README.MD)

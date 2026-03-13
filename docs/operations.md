@@ -22,6 +22,7 @@ Linux/macOS:
 
 Edit:
 
+- [miner.env](../config/miner.env)
 - [miner.env](../config.local/miner.env)
 
 Ubah:
@@ -51,8 +52,9 @@ Gejala:
 
 Solusi:
 
-- pastikan file [miner.env](../config.local/miner.env) ada
-- jika hilang, copy dari [miner.env.example](../config/miner.env.example)
+- pastikan file [miner.env](../config/miner.env) ada
+- repo akan membuat [miner.env](../config.local/miner.env) otomatis dari basis global jika file lokal belum ada
+- jika basis global hilang, repo akan membuatnya dari [miner.env.example](../config/miner.env.example)
 
 ### Binary Tidak Ditemukan
 
@@ -84,6 +86,7 @@ chmod +x /path/ke/tools/lolminer/macos/lolMiner
 
 Lalu isi path di:
 
+- [miner.env](../config/miner.env)
 - [miner.env](../config.local/miner.env)
 
 ### Linux GPU Tidak Jalan
@@ -100,6 +103,7 @@ Solusi:
 ## Aturan Operasional
 
 - Jangan simpan config sensitif di script launcher.
+- Simpan nilai bersama semua OS di `config/miner.env`.
 - Simpan perbedaan device hanya di `config.local/miner.env`.
 - Jangan ubah `run.bat` lama jika masih dipakai untuk flow lama.
 - Gunakan `run-portable.bat` atau `run.sh` untuk flow portable baru.
@@ -109,4 +113,4 @@ Solusi:
 - Gunakan `WORKER_NAME` unik per device.
 - Simpan binary sesuai OS.
 - Aktifkan autostart hanya untuk device yang memang stabil.
-- Jika pindah laptop, cukup copy repo lalu sesuaikan `config.local/miner.env`.
+- Jika pindah laptop, cukup copy repo lalu sesuaikan `config.local/miner.env` hanya jika laptop itu butuh override.

@@ -69,6 +69,7 @@ Isi:
 File utama:
 
 - [miner.env.example](../config/miner.env.example)
+- [miner.env](../config/miner.env)
 
 ### `config.local/`
 
@@ -80,6 +81,11 @@ Isi:
 File utama:
 
 - [miner.env](../config.local/miner.env)
+
+Urutan fungsi config:
+
+- `config/miner.env`: basis global semua OS
+- `config.local/miner.env`: override lokal per desktop
 
 Tujuan:
 

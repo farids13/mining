@@ -10,13 +10,13 @@ case "$OS_NAME" in
     if [ -n "$PROFILE" ]; then
       exec "$ROOT_DIR/scripts/linux/start-profile.sh" "$PROFILE"
     fi
-    exec "$ROOT_DIR/scripts/unix/dashboard.sh"
+    exec bash "$ROOT_DIR/scripts/unix/dashboard.sh"
     ;;
   Darwin)
     if [ -n "$PROFILE" ]; then
       exec "$ROOT_DIR/scripts/macos/start-profile.sh" "$PROFILE"
     fi
-    exec "$ROOT_DIR/scripts/unix/dashboard.sh"
+    exec bash "$ROOT_DIR/scripts/unix/dashboard.sh"
     ;;
   *)
     echo "OS tidak didukung oleh run.sh: $OS_NAME" >&2

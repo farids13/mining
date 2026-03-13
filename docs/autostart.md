@@ -7,7 +7,8 @@ Autostart di repo ini bersifat opsional. Tujuannya adalah memberi pilihan:
 
 Profile yang dijalankan saat autostart diambil dari:
 
-- `AUTOSTART_PROFILE` di [miner.env](../config.local/miner.env)
+- `AUTOSTART_PROFILE` idealnya disimpan di [miner.env](../config/miner.env)
+- Jika satu desktop butuh nilai beda, override di [miner.env](../config.local/miner.env)
 
 Nilai yang didukung:
 

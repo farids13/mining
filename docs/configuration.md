@@ -12,15 +12,33 @@ Yang dimaksud `environment` di sini adalah environment desktop:
 
 Bukan sekadar file `.env`.
 
-## Satu Titik Setup Device
+## Basis Config Global
 
-Setup per desktop dipusatkan di file:
+Semua OS sekarang memakai basis config yang sama di file:
+
+- [miner.env](../config/miner.env)
+
+Nilai global ini dibaca oleh:
+
+- Windows
+- Linux
+- macOS
+
+## Override Per Desktop
+
+Jika satu desktop perlu nilai berbeda, gunakan:
 
 - [miner.env](../config.local/miner.env)
 
 Template referensi:
 
 - [miner.env.example](../config/miner.env.example)
+
+Urutan load config:
+
+1. `config/miner.env`
+2. `config.local/miner.env`
+3. `config.local/profiles/<nama>.env`
 
 ## Tujuan Desain
 
@@ -37,8 +55,8 @@ Saat repo dipindah ke desktop baru, langkah setup yang ideal hanya ini:
 
 1. Taruh repo di lokasi yang diinginkan
 2. Update atau siapkan binary sesuai OS dari sumber resmi
-3. Buka [miner.env](../config.local/miner.env)
-4. Isi identitas device dan profile jalan
+3. Cek [miner.env](../config/miner.env)
+4. Jika desktop ini butuh override, isi [miner.env](../config.local/miner.env)
 5. Coba jalankan manual
 6. Jika sudah stabil, pilih manual terus atau aktifkan autostart
 
@@ -89,7 +107,7 @@ Dengan alur ini, update tetap bisa dilakukan walaupun shell tidak bisa download 
 
 ## Yang Biasanya Berubah Antar Desktop
 
-Bagian yang paling umum berubah:
+Bagian yang paling umum berubah per desktop:
 
 - `WORKER_NAME`
 - `RIG_ID`
@@ -101,7 +119,7 @@ Bagian yang paling umum berubah:
 
 ## Yang Tidak Perlu Sering Diubah
 
-Biasanya bagian ini tetap:
+Biasanya bagian ini tetap global:
 
 - `COIN`
 - `WALLET`
