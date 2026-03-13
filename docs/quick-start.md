@@ -40,11 +40,11 @@ Jadi saat setup di Mac:
 
 ## 2. Setup Awal Sekali
 
-Satu titik setup device ada di:
+Saat `./run.sh` dijalankan pertama kali, repo akan otomatis membuat:
 
 - [miner.env](../config.local/miner.env)
 
-Template default ada di:
+dari template:
 
 - [miner.env.example](../config/miner.env.example)
 

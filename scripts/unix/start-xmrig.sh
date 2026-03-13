@@ -13,26 +13,32 @@ if [ ! -x "$XMRIG_UNIX_BIN" ]; then
 fi
 
 USER_SPEC="$COIN:$WALLET.$WORKER_NAME"
-set -- "$XMRIG_UNIX_BIN" -o "$POOL_CPU" -a "$ALGO_CPU" -k -u "$USER_SPEC" -p "$PASSWORD" \
-  --threads="$XMRIG_THREADS" --cpu-priority="$XMRIG_CPU_PRIORITY" \
-  --print-time="$XMRIG_PRINT_TIME" \
-  --donate-level="$XMRIG_DONATE_LEVEL"
-
-if [ "${XMRIG_HUGE_PAGES_JIT}" = "true" ]; then
-  set -- "$@" --huge-pages-jit
-fi
-
-if [ -n "${XMRIG_CPU_AFFINITY:-}" ]; then
-  set -- "$@" --cpu-affinity="$XMRIG_CPU_AFFINITY"
-fi
-
-if [ -n "${RIG_ID:-}" ]; then
-  set -- "$@" --rig-id="$RIG_ID"
-fi
-
-if [ -n "${XMRIG_EXTRA_ARGS:-}" ]; then
+if [ "${RUN_MODE:-profile}" = "cli" ] && [ -n "${XMRIG_CLI_ARGS:-}" ]; then
+  set -- "$XMRIG_UNIX_BIN"
   # shellcheck disable=SC2086
-  set -- "$@" $XMRIG_EXTRA_ARGS
+  set -- "$@" $XMRIG_CLI_ARGS
+else
+  set -- "$XMRIG_UNIX_BIN" -o "$POOL_CPU" -a "$ALGO_CPU" -k -u "$USER_SPEC" -p "$PASSWORD" \
+    --threads="$XMRIG_THREADS" --cpu-priority="$XMRIG_CPU_PRIORITY" \
+    --print-time="$XMRIG_PRINT_TIME" \
+    --donate-level="$XMRIG_DONATE_LEVEL"
+
+  if [ "${XMRIG_HUGE_PAGES_JIT}" = "true" ]; then
+    set -- "$@" --huge-pages-jit
+  fi
+
+  if [ -n "${XMRIG_CPU_AFFINITY:-}" ]; then
+    set -- "$@" --cpu-affinity="$XMRIG_CPU_AFFINITY"
+  fi
+
+  if [ -n "${RIG_ID:-}" ]; then
+    set -- "$@" --rig-id="$RIG_ID"
+  fi
+
+  if [ -n "${XMRIG_EXTRA_ARGS:-}" ]; then
+    # shellcheck disable=SC2086
+    set -- "$@" $XMRIG_EXTRA_ARGS
+  fi
 fi
 
 cd "$(dirname "$XMRIG_UNIX_BIN")"

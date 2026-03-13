@@ -177,6 +177,9 @@ PASSWORD=$PASSWORD
 WORKER_NAME=$WORKER_NAME
 RIG_ID=$RIG_ID
 AUTOSTART_PROFILE=$AUTOSTART_PROFILE
+RUN_MODE=$RUN_MODE
+PROFILE_NAME=$PROFILE_NAME
+XMRIG_CLI_ARGS=$XMRIG_CLI_ARGS
 
 POOL_CPU=$POOL_CPU
 ALGO_CPU=$ALGO_CPU
@@ -198,6 +201,47 @@ LOL_EXTRA_ARGS=$LOL_EXTRA_ARGS
 EOF
 }
 
+save_profile_config() {
+  mkdir -p "$PROFILE_DIR"
+  cat > "$PROFILE_DIR/$PROFILE_NAME.env" <<EOF
+COIN=$COIN
+WALLET=$WALLET
+PASSWORD=$PASSWORD
+WORKER_NAME=$WORKER_NAME
+RIG_ID=$RIG_ID
+AUTOSTART_PROFILE=$AUTOSTART_PROFILE
+POOL_CPU=$POOL_CPU
+ALGO_CPU=$ALGO_CPU
+XMRIG_THREADS=$XMRIG_THREADS
+XMRIG_CPU_PRIORITY=$XMRIG_CPU_PRIORITY
+XMRIG_CPU_AFFINITY=$XMRIG_CPU_AFFINITY
+XMRIG_PRINT_TIME=$XMRIG_PRINT_TIME
+XMRIG_HEALTH_PRINT_TIME=$XMRIG_HEALTH_PRINT_TIME
+XMRIG_DONATE_LEVEL=$XMRIG_DONATE_LEVEL
+XMRIG_HUGE_PAGES_JIT=$XMRIG_HUGE_PAGES_JIT
+POOL_GPU=$POOL_GPU
+ALGO_GPU=$ALGO_GPU
+LOL_WORKER_NAME=$LOL_WORKER_NAME
+LOL_API_PORT=$LOL_API_PORT
+LOL_EXTRA_ARGS=$LOL_EXTRA_ARGS
+EOF
+}
+
+load_profile_config() {
+  local selected_profile="$1"
+  local profile_file="$PROFILE_DIR/$selected_profile.env"
+  [[ -f "$profile_file" ]] || return 1
+  PROFILE_NAME="$selected_profile"
+  RUN_MODE="profile"
+  load_env_file "$profile_file"
+  save_config
+}
+
+list_profiles() {
+  mkdir -p "$PROFILE_DIR"
+  find "$PROFILE_DIR" -maxdepth 1 -type f -name '*.env' -exec basename {} .env \; | sort
+}
+
 show_current_config() {
   local total_cpu
   total_cpu=$(detect_logical_cpu)
@@ -215,6 +259,8 @@ show_current_config() {
   status_line "Wallet" "$WALLET" "$C_VALUE"
   status_line "Worker" "$WORKER_NAME" "$C_VALUE"
   status_line "Default mode" "$AUTOSTART_PROFILE" "$C_HOT"
+  status_line "Run mode" "$RUN_MODE" "$C_HOT"
+  status_line "Active profile" "$PROFILE_NAME" "$C_VALUE"
   status_line "CPU pool" "$POOL_CPU" "$C_VALUE"
   status_line "CPU threads" "$XMRIG_THREADS" "$C_HOT"
   status_line "GPU pool" "$POOL_GPU" "$C_VALUE"
@@ -236,6 +282,8 @@ setup_profile() {
   WORKER_NAME=$(prompt_default "Worker name" "$WORKER_NAME")
   LOL_WORKER_NAME="$WORKER_NAME"
   RIG_ID=$(prompt_default "Rig ID (opsional)" "$RIG_ID")
+  choose_option "Pilih mode XMRig" "profile" "cli"
+  RUN_MODE="$CHOOSE_RESULT"
   mode_choice=$(choose_option "Pilih default mode" "cpu" "gpu" "both")
   AUTOSTART_PROFILE="$mode_choice"
   POOL_CPU=$(prompt_default "CPU pool" "$POOL_CPU")
@@ -245,10 +293,37 @@ setup_profile() {
   XMRIG_THREADS=$(calc_threads_from_percent "$cpu_percent")
   XMRIG_CPU_PRIORITY=$(prompt_default "CPU priority" "$XMRIG_CPU_PRIORITY")
   XMRIG_CPU_AFFINITY=$(prompt_default "CPU affinity hex (opsional)" "$XMRIG_CPU_AFFINITY")
+  if [[ "$RUN_MODE" == "cli" ]]; then
+    XMRIG_CLI_ARGS=$(prompt_default "XMRig CLI args" "$XMRIG_CLI_ARGS")
+  else
+    PROFILE_NAME=$(prompt_default "Nama profile" "$PROFILE_NAME")
+    XMRIG_CLI_ARGS=""
+  fi
   XMRIG_UNIX_BIN=$(prompt_default "Path XMRig Unix" "$XMRIG_UNIX_BIN")
   LOLMINER_UNIX_BIN=$(prompt_default "Path lolMiner Unix" "$LOLMINER_UNIX_BIN")
+  if [[ "$RUN_MODE" == "profile" ]]; then
+    save_profile_config
+  fi
   save_config
   printf "%sConfig tersimpan ke%s %s%s%s\n" "$C_OK" "$C_RESET" "$C_VALUE" "$ENV_FILE" "$C_RESET"
+}
+
+select_saved_profile() {
+  local profiles profile_options=()
+  while IFS= read -r p; do
+    [[ -n "$p" ]] && profile_options+=("$p")
+  done <<EOF
+$(list_profiles)
+EOF
+
+  if [[ ${#profile_options[@]} -eq 0 ]]; then
+    printf "%sBelum ada profile tersimpan.%s\n" "$C_WARN" "$C_RESET"
+    return
+  fi
+
+  choose_option "Pilih profile tersimpan" "${profile_options[@]}"
+  load_profile_config "$CHOOSE_RESULT"
+  printf "%sProfile aktif:%s %s%s%s\n" "$C_OK" "$C_RESET" "$C_VALUE" "$CHOOSE_RESULT" "$C_RESET"
 }
 
 run_profile_now() {
@@ -299,6 +374,7 @@ pause_to_dashboard() {
 main_menu() {
   choose_option "Menu Utama" \
     "Setup / ubah config" \
+    "Pilih profile tersimpan" \
     "Jalankan mining sekarang" \
     "Update XMRig" \
     "Autostart on/off" \
@@ -311,6 +387,9 @@ while true; do
   case "$CHOOSE_RESULT" in
     "Setup / ubah config")
       setup_profile
+      ;;
+    "Pilih profile tersimpan")
+      select_saved_profile
       ;;
     "Jalankan mining sekarang")
       run_profile_now

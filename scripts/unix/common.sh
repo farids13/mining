@@ -3,41 +3,58 @@
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
 ENV_FILE="$ROOT/config.local/miner.env"
+PROFILE_DIR="$ROOT/config.local/profiles"
 UNAME_S=$(uname -s)
 
 if [ ! -f "$ENV_FILE" ]; then
-  echo "File config lokal belum ada: $ENV_FILE" >&2
-  echo "Copy $ROOT/config/miner.env.example ke $ENV_FILE lalu isi wallet dan profile device." >&2
-  return 1 2>/dev/null || exit 1
+  mkdir -p "$(dirname "$ENV_FILE")"
+  cp "$ROOT/config/miner.env.example" "$ENV_FILE"
+  echo "Config lokal dibuat otomatis: $ENV_FILE" >&2
+  echo "Silakan lengkapi wallet dan profile device dari dashboard." >&2
 fi
 
-# Parse KEY=VALUE manually so values with spaces do not break shell sourcing.
-while IFS= read -r line || [ -n "$line" ]; do
-  case "$line" in
-    "" | \#* | \;*)
-      continue
-      ;;
-  esac
+load_env_file() {
+  file_path="$1"
+  [ -f "$file_path" ] || return 0
 
-  key=${line%%=*}
-  value=${line#*=}
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      "" | \#* | \;*)
+        continue
+        ;;
+    esac
 
-  key=$(printf '%s' "$key" | tr -d '[:space:]')
-  value=$(printf '%s' "$value" | tr -d '\r')
+    key=${line%%=*}
+    value=${line#*=}
 
-  case "$value" in
-    \"*\")
-      value=${value#\"}
-      value=${value%\"}
-      ;;
-    \'*\')
-      value=${value#\'}
-      value=${value%\'}
-      ;;
-  esac
+    key=$(printf '%s' "$key" | tr -d '[:space:]')
+    value=$(printf '%s' "$value" | tr -d '\r')
 
-  export "$key=$value"
-done < "$ENV_FILE"
+    case "$value" in
+      \"*\")
+        value=${value#\"}
+        value=${value%\"}
+        ;;
+      \'*\')
+        value=${value#\'}
+        value=${value%\'}
+        ;;
+    esac
+
+    export "$key=$value"
+  done < "$file_path"
+}
+
+load_env_file "$ENV_FILE"
+
+[ -n "${RUN_MODE:-}" ] || RUN_MODE="profile"
+[ -n "${PROFILE_NAME:-}" ] || PROFILE_NAME="default"
+[ -n "${XMRIG_CLI_ARGS:-}" ] || XMRIG_CLI_ARGS=""
+
+profile_file="$PROFILE_DIR/$PROFILE_NAME.env"
+if [ "$RUN_MODE" = "profile" ] && [ -f "$profile_file" ]; then
+  load_env_file "$profile_file"
+fi
 
 : "${COIN:?COIN wajib diisi di config.local/miner.env}"
 : "${WALLET:?WALLET wajib diisi di config.local/miner.env}"
@@ -70,3 +87,4 @@ export ROOT ENV_FILE UNAME_S COIN WALLET PASSWORD WORKER_NAME LOL_WORKER_NAME AU
 export POOL_CPU ALGO_CPU POOL_GPU ALGO_GPU
 export XMRIG_THREADS XMRIG_CPU_PRIORITY XMRIG_PRINT_TIME XMRIG_HEALTH_PRINT_TIME
 export XMRIG_DONATE_LEVEL XMRIG_HUGE_PAGES_JIT LOL_API_PORT XMRIG_UNIX_BIN LOLMINER_UNIX_BIN
+export PROFILE_DIR RUN_MODE PROFILE_NAME XMRIG_CLI_ARGS
