@@ -86,6 +86,7 @@ fi
 
 [ -n "${WORKER_NAME:-}" ] || WORKER_NAME=$(hostname)
 [ -n "${LOL_WORKER_NAME:-}" ] || LOL_WORKER_NAME="$WORKER_NAME"
+[ -n "${RIG_ID:-}" ] || RIG_ID=""
 [ -n "${POOL_CPU:-}" ] || POOL_CPU="rx.unmineable.com:3333"
 [ -n "${ALGO_CPU:-}" ] || ALGO_CPU="rx"
 [ -n "${POOL_GPU:-}" ] || POOL_GPU="etchash.unmineable.com:3333"
@@ -94,11 +95,14 @@ fi
 [ -n "${AUTOSTART_PROFILE:-}" ] || AUTOSTART_PROFILE="cpu"
 [ -n "${XMRIG_THREADS:-}" ] || XMRIG_THREADS="2"
 [ -n "${XMRIG_CPU_PRIORITY:-}" ] || XMRIG_CPU_PRIORITY="5"
+[ -n "${XMRIG_CPU_AFFINITY:-}" ] || XMRIG_CPU_AFFINITY=""
 [ -n "${XMRIG_PRINT_TIME:-}" ] || XMRIG_PRINT_TIME="60"
 [ -n "${XMRIG_HEALTH_PRINT_TIME:-}" ] || XMRIG_HEALTH_PRINT_TIME="60"
 [ -n "${XMRIG_DONATE_LEVEL:-}" ] || XMRIG_DONATE_LEVEL="1"
 [ -n "${XMRIG_HUGE_PAGES_JIT:-}" ] || XMRIG_HUGE_PAGES_JIT="false"
+[ -n "${XMRIG_EXTRA_ARGS:-}" ] || XMRIG_EXTRA_ARGS=""
 [ -n "${LOL_API_PORT:-}" ] || LOL_API_PORT="8020"
+[ -n "${LOL_EXTRA_ARGS:-}" ] || LOL_EXTRA_ARGS=""
 
 if [ "$UNAME_S" = "Darwin" ]; then
   [ -n "${XMRIG_UNIX_BIN:-}" ] || XMRIG_UNIX_BIN="$ROOT/tools/xmrig/macos/xmrig"

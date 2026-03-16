@@ -162,6 +162,112 @@ detect_logical_cpu() {
   fi
 }
 
+detect_physical_cpu() {
+  if [[ "$UNAME_S" == "Darwin" ]]; then
+    sysctl -n hw.physicalcpu 2>/dev/null || detect_logical_cpu
+  else
+    lscpu 2>/dev/null | awk -F: '/^Core\\(s\\) per socket:/ {gsub(/^[ \t]+/, "", $2); cores=$2} /^Socket\\(s\\):/ {gsub(/^[ \t]+/, "", $2); sockets=$2} END {if (cores > 0 && sockets > 0) print cores * sockets}'
+  fi
+}
+
+cpu_mask_from_list() {
+  local cpu_list="$1"
+  local mask=0
+  local cpu
+  for cpu in $cpu_list; do
+    if [[ "$cpu" =~ ^[0-9]+$ ]] && (( cpu < 63 )); then
+      mask=$((mask | (1 << cpu)))
+    fi
+  done
+  printf '0x%X\n' "$mask"
+}
+
+build_core_groups() {
+  CORE_GROUP_LABELS=()
+  CORE_GROUP_MASKS=()
+  CORE_GROUP_THREADS=()
+
+  if [[ "$UNAME_S" != "Darwin" ]] && command -v lscpu >/dev/null 2>&1; then
+    local raw_line core_id cpu_id cpu_list thread_count mask
+    local -A core_cpu_map=()
+    local -a core_order=()
+
+    while IFS=, read -r core_id cpu_id; do
+      [[ -z "$core_id" || -z "$cpu_id" ]] && continue
+      if [[ -z "${core_cpu_map[$core_id]+x}" ]]; then
+        core_order+=("$core_id")
+        core_cpu_map[$core_id]="$cpu_id"
+      else
+        core_cpu_map[$core_id]="${core_cpu_map[$core_id]} $cpu_id"
+      fi
+    done < <(lscpu -p=CORE,CPU 2>/dev/null | grep -v '^#')
+
+    if (( ${#core_order[@]} > 0 )); then
+      local index=1
+      for core_id in "${core_order[@]}"; do
+        cpu_list="${core_cpu_map[$core_id]}"
+        thread_count=$(wc -w <<< "$cpu_list")
+        mask=$(cpu_mask_from_list "$cpu_list")
+        CORE_GROUP_LABELS+=("Core $index (~$thread_count thread, $mask)")
+        CORE_GROUP_MASKS+=("$mask")
+        CORE_GROUP_THREADS+=("$thread_count")
+        index=$((index + 1))
+      done
+      return
+    fi
+  fi
+
+  local logical_cpu physical_cpu threads_per_core cpu_index core_index cpu_list thread_count mask
+  logical_cpu=$(detect_logical_cpu)
+  physical_cpu=$(detect_physical_cpu)
+  if ! [[ "$physical_cpu" =~ ^[0-9]+$ ]] || (( physical_cpu < 1 )); then
+    physical_cpu="$logical_cpu"
+  fi
+  threads_per_core=$((logical_cpu / physical_cpu))
+  if (( threads_per_core < 1 )); then
+    threads_per_core=1
+  fi
+
+  cpu_index=0
+  for ((core_index = 1; core_index <= physical_cpu && cpu_index < logical_cpu; core_index++)); do
+    cpu_list=""
+    thread_count=0
+    while (( thread_count < threads_per_core && cpu_index < logical_cpu )); do
+      cpu_list="$cpu_list $cpu_index"
+      cpu_index=$((cpu_index + 1))
+      thread_count=$((thread_count + 1))
+    done
+    cpu_list="${cpu_list# }"
+    mask=$(cpu_mask_from_list "$cpu_list")
+    CORE_GROUP_LABELS+=("Core $core_index (~$thread_count thread, $mask)")
+    CORE_GROUP_MASKS+=("$mask")
+    CORE_GROUP_THREADS+=("$thread_count")
+  done
+}
+
+apply_core_limit() {
+  local selected_count="$1"
+  local combined_mask=0
+  local allowed_threads=0
+  local i
+
+  if ! [[ "$selected_count" =~ ^[0-9]+$ ]] || (( selected_count <= 0 )); then
+    XMRIG_CPU_AFFINITY=""
+    return
+  fi
+
+  build_core_groups
+  for ((i = 0; i < selected_count && i < ${#CORE_GROUP_MASKS[@]}; i++)); do
+    combined_mask=$((combined_mask | ${CORE_GROUP_MASKS[$i]}))
+    allowed_threads=$((allowed_threads + ${CORE_GROUP_THREADS[$i]}))
+  done
+
+  XMRIG_CPU_AFFINITY=$(printf '0x%X' "$combined_mask")
+  if (( XMRIG_THREADS > allowed_threads )); then
+    XMRIG_THREADS="$allowed_threads"
+  fi
+}
+
 calc_threads_from_percent() {
   local percent="$1"
   local total_cpu
@@ -359,6 +465,7 @@ show_current_config() {
   status_line "CPU pool" "$POOL_CPU" "$C_VALUE"
   status_line "CPU threads" "$XMRIG_THREADS" "$C_HOT"
   status_line "CPU priority" "$XMRIG_CPU_PRIORITY" "$C_HOT"
+  status_line "CPU affinity" "${XMRIG_CPU_AFFINITY:-auto}" "$C_HOT"
   status_line "GPU pool" "$POOL_GPU" "$C_VALUE"
   hr
   panel_title "Tools"
@@ -370,15 +477,17 @@ show_current_config() {
 }
 
 setup_profile() {
-  local total_cpu cpu_percent percent_default mode_choice cpu_power_mode
+  local total_cpu cpu_percent percent_default cpu_power_mode
+  local core_options=() selected_core_count i
   total_cpu=$(detect_logical_cpu)
+  build_core_groups
   panel_title "Setup Wizard"
   printf "%sIsi kosong untuk pakai nilai lama.%s\n" "$C_DIM" "$C_RESET"
   COIN=$(prompt_default "Coin payout" "$COIN")
   WALLET=$(prompt_default "Wallet" "$WALLET")
   WORKER_NAME=$(prompt_default "Worker name" "$WORKER_NAME")
   LOL_WORKER_NAME="$WORKER_NAME"
-  RIG_ID=$(prompt_default "Rig ID (opsional)" "$RIG_ID")
+  RIG_ID=$(prompt_default "Rig ID (opsional)" "${RIG_ID:-}")
   choose_option "Pilih mode XMRig" "profile" "cli"
   RUN_MODE="$CHOOSE_RESULT"
   choose_option "Pilih default mode" "cpu" "gpu" "both"
@@ -396,7 +505,19 @@ setup_profile() {
   fi
   choose_option "Pilih CPU priority" "1" "2" "3" "4" "5"
   XMRIG_CPU_PRIORITY="$CHOOSE_RESULT"
-  XMRIG_CPU_AFFINITY=$(prompt_default "CPU affinity hex (opsional)" "$XMRIG_CPU_AFFINITY")
+  core_options=("Auto / semua core")
+  for ((i = 0; i < ${#CORE_GROUP_LABELS[@]}; i++)); do
+    core_options+=("Pakai $((i + 1)) core pertama - ${CORE_GROUP_LABELS[$i]}")
+  done
+  choose_option "Pilih batas core CPU" "${core_options[@]}"
+  if [[ "$CHOOSE_RESULT" == "Auto / semua core" ]]; then
+    XMRIG_CPU_AFFINITY=""
+  else
+    selected_core_count=${CHOOSE_RESULT#Pakai }
+    selected_core_count=${selected_core_count%% core pertama*}
+    apply_core_limit "$selected_core_count"
+  fi
+  XMRIG_CPU_AFFINITY=$(prompt_default "CPU affinity hex (opsional)" "${XMRIG_CPU_AFFINITY:-}")
   if [[ "$RUN_MODE" == "cli" ]]; then
     XMRIG_CLI_ARGS=$(prompt_default "XMRig CLI args" "$XMRIG_CLI_ARGS")
   else
