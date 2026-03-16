@@ -11,31 +11,35 @@ if ! [[ -t 0 && -t 1 ]]; then
   exit 1
 fi
 
-if [[ -t 1 ]]; then
-  C_RESET=$'\033[0m'
-  C_TITLE=$'\033[1;36m'
-  C_LABEL=$'\033[38;5;223m'
-  C_VALUE=$'\033[1;37m'
-  C_OK=$'\033[1;32m'
-  C_MENU=$'\033[38;5;81m'
-  C_WARN=$'\033[1;31m'
-  C_DIM=$'\033[2m'
-  C_PANEL=$'\033[38;5;45m'
-  C_HOT=$'\033[1;95m'
-  C_SELECT=$'\033[1;96m'
-else
-  C_RESET=""
-  C_TITLE=""
-  C_LABEL=""
-  C_VALUE=""
-  C_OK=""
-  C_MENU=""
-  C_WARN=""
-  C_DIM=""
-  C_PANEL=""
-  C_HOT=""
-  C_SELECT=""
-fi
+init_colors() {
+  if [[ -t 1 ]]; then
+    C_RESET=$'\033[0m'
+    C_TITLE=$'\033[1;36m'
+    C_LABEL=$'\033[38;5;223m'
+    C_VALUE=$'\033[1;37m'
+    C_OK=$'\033[1;32m'
+    C_MENU=$'\033[38;5;81m'
+    C_WARN=$'\033[1;31m'
+    C_DIM=$'\033[2m'
+    C_PANEL=$'\033[38;5;45m'
+    C_HOT=$'\033[1;95m'
+    C_SELECT=$'\033[1;96m'
+  else
+    C_RESET=""
+    C_TITLE=""
+    C_LABEL=""
+    C_VALUE=""
+    C_OK=""
+    C_MENU=""
+    C_WARN=""
+    C_DIM=""
+    C_PANEL=""
+    C_HOT=""
+    C_SELECT=""
+  fi
+}
+
+init_colors
 
 hr() {
   printf "%s────────────────────────────────────────────────────────%s\n" "$C_PANEL" "$C_RESET"
@@ -101,18 +105,10 @@ binary_status() {
 }
 
 autostart_status() {
-  if [[ "$UNAME_S" == "Darwin" ]]; then
-    if [[ -f "$HOME/Library/LaunchAgents/com.fast.mining-portable.plist" ]]; then
-      printf '%bconfigured%b' "$C_OK" "$C_RESET"
-    else
-      printf '%boff%b' "$C_WARN" "$C_RESET"
-    fi
+  if is_service_configured; then
+    printf '%bconfigured%b' "$C_OK" "$C_RESET"
   else
-    if [[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/mining-portable.service" ]]; then
-      printf '%bconfigured%b' "$C_OK" "$C_RESET"
-    else
-      printf '%boff%b' "$C_WARN" "$C_RESET"
-    fi
+    printf '%boff%b' "$C_WARN" "$C_RESET"
   fi
 }
 
@@ -124,12 +120,16 @@ service_name() {
   fi
 }
 
-is_service_configured() {
+service_config_path() {
   if [[ "$UNAME_S" == "Darwin" ]]; then
-    [[ -f "$HOME/Library/LaunchAgents/com.fast.mining-portable.plist" ]]
+    printf '%s\n' "$HOME/Library/LaunchAgents/com.fast.mining-portable.plist"
   else
-    [[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/mining-portable.service" ]]
+    printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/mining-portable.service"
   fi
+}
+
+is_service_configured() {
+  [[ -f "$(service_config_path)" ]]
 }
 
 service_running() {
@@ -245,6 +245,14 @@ build_core_groups() {
   done
 }
 
+build_core_limit_options() {
+  local i
+  CORE_LIMIT_OPTIONS=("Auto / semua core")
+  for ((i = 0; i < ${#CORE_GROUP_LABELS[@]}; i++)); do
+    CORE_LIMIT_OPTIONS+=("Pakai $((i + 1)) core pertama - ${CORE_GROUP_LABELS[$i]}")
+  done
+}
+
 apply_core_limit() {
   local selected_count="$1"
   local combined_mask=0
@@ -265,6 +273,81 @@ apply_core_limit() {
   XMRIG_CPU_AFFINITY=$(printf '0x%X' "$combined_mask")
   if (( XMRIG_THREADS > allowed_threads )); then
     XMRIG_THREADS="$allowed_threads"
+  fi
+}
+
+save_global_config() {
+  cat > "$GLOBAL_ENV_FILE" <<EOF
+COIN=$COIN
+WALLET=$WALLET
+PASSWORD=$PASSWORD
+AUTOSTART_PROFILE=$AUTOSTART_PROFILE
+RUN_MODE=$RUN_MODE
+PROFILE_NAME=$PROFILE_NAME
+XMRIG_CLI_ARGS=$XMRIG_CLI_ARGS
+
+POOL_CPU=$POOL_CPU
+ALGO_CPU=$ALGO_CPU
+XMRIG_THREADS=$XMRIG_THREADS
+XMRIG_CPU_PRIORITY=$XMRIG_CPU_PRIORITY
+XMRIG_PRINT_TIME=$XMRIG_PRINT_TIME
+XMRIG_HEALTH_PRINT_TIME=$XMRIG_HEALTH_PRINT_TIME
+XMRIG_DONATE_LEVEL=$XMRIG_DONATE_LEVEL
+XMRIG_HUGE_PAGES_JIT=$XMRIG_HUGE_PAGES_JIT
+
+POOL_GPU=$POOL_GPU
+ALGO_GPU=$ALGO_GPU
+LOL_API_PORT=$LOL_API_PORT
+LOL_EXTRA_ARGS=$LOL_EXTRA_ARGS
+EOF
+}
+
+save_local_config() {
+  cat > "$ENV_FILE" <<EOF
+WORKER_NAME=$WORKER_NAME
+LOL_WORKER_NAME=$LOL_WORKER_NAME
+RIG_ID=$RIG_ID
+XMRIG_UNIX_BIN=$XMRIG_UNIX_BIN
+XMRIG_CPU_AFFINITY=$XMRIG_CPU_AFFINITY
+LOLMINER_UNIX_BIN=$LOLMINER_UNIX_BIN
+EOF
+}
+
+save_profile_env() {
+  cat > "$PROFILE_DIR/$PROFILE_NAME.env" <<EOF
+COIN=$COIN
+WALLET=$WALLET
+PASSWORD=$PASSWORD
+WORKER_NAME=$WORKER_NAME
+RIG_ID=$RIG_ID
+AUTOSTART_PROFILE=$AUTOSTART_PROFILE
+POOL_CPU=$POOL_CPU
+ALGO_CPU=$ALGO_CPU
+XMRIG_THREADS=$XMRIG_THREADS
+XMRIG_CPU_PRIORITY=$XMRIG_CPU_PRIORITY
+XMRIG_CPU_AFFINITY=$XMRIG_CPU_AFFINITY
+XMRIG_PRINT_TIME=$XMRIG_PRINT_TIME
+XMRIG_HEALTH_PRINT_TIME=$XMRIG_HEALTH_PRINT_TIME
+XMRIG_DONATE_LEVEL=$XMRIG_DONATE_LEVEL
+XMRIG_HUGE_PAGES_JIT=$XMRIG_HUGE_PAGES_JIT
+POOL_GPU=$POOL_GPU
+ALGO_GPU=$ALGO_GPU
+LOL_WORKER_NAME=$LOL_WORKER_NAME
+LOL_API_PORT=$LOL_API_PORT
+LOL_EXTRA_ARGS=$LOL_EXTRA_ARGS
+EOF
+}
+
+collect_profile_options() {
+  local profile_options=()
+  local p
+  while IFS= read -r p; do
+    [[ -n "$p" ]] && profile_options+=("$p")
+  done <<EOF
+$(list_profiles)
+EOF
+  if (( ${#profile_options[@]} > 0 )); then
+    printf '%s\n' "${profile_options[@]}"
   fi
 }
 
@@ -367,64 +450,13 @@ choose_option() {
 save_config() {
   mkdir -p "$ROOT/config"
   mkdir -p "$ROOT/config.local"
-  cat > "$GLOBAL_ENV_FILE" <<EOF
-COIN=$COIN
-WALLET=$WALLET
-PASSWORD=$PASSWORD
-AUTOSTART_PROFILE=$AUTOSTART_PROFILE
-RUN_MODE=$RUN_MODE
-PROFILE_NAME=$PROFILE_NAME
-XMRIG_CLI_ARGS=$XMRIG_CLI_ARGS
-
-POOL_CPU=$POOL_CPU
-ALGO_CPU=$ALGO_CPU
-XMRIG_THREADS=$XMRIG_THREADS
-XMRIG_CPU_PRIORITY=$XMRIG_CPU_PRIORITY
-XMRIG_PRINT_TIME=$XMRIG_PRINT_TIME
-XMRIG_HEALTH_PRINT_TIME=$XMRIG_HEALTH_PRINT_TIME
-XMRIG_DONATE_LEVEL=$XMRIG_DONATE_LEVEL
-XMRIG_HUGE_PAGES_JIT=$XMRIG_HUGE_PAGES_JIT
-
-POOL_GPU=$POOL_GPU
-ALGO_GPU=$ALGO_GPU
-LOL_API_PORT=$LOL_API_PORT
-LOL_EXTRA_ARGS=$LOL_EXTRA_ARGS
-EOF
-
-  cat > "$ENV_FILE" <<EOF
-WORKER_NAME=$WORKER_NAME
-LOL_WORKER_NAME=$LOL_WORKER_NAME
-RIG_ID=$RIG_ID
-XMRIG_UNIX_BIN=$XMRIG_UNIX_BIN
-XMRIG_CPU_AFFINITY=$XMRIG_CPU_AFFINITY
-LOLMINER_UNIX_BIN=$LOLMINER_UNIX_BIN
-EOF
+  save_global_config
+  save_local_config
 }
 
 save_profile_config() {
   mkdir -p "$PROFILE_DIR"
-  cat > "$PROFILE_DIR/$PROFILE_NAME.env" <<EOF
-COIN=$COIN
-WALLET=$WALLET
-PASSWORD=$PASSWORD
-WORKER_NAME=$WORKER_NAME
-RIG_ID=$RIG_ID
-AUTOSTART_PROFILE=$AUTOSTART_PROFILE
-POOL_CPU=$POOL_CPU
-ALGO_CPU=$ALGO_CPU
-XMRIG_THREADS=$XMRIG_THREADS
-XMRIG_CPU_PRIORITY=$XMRIG_CPU_PRIORITY
-XMRIG_CPU_AFFINITY=$XMRIG_CPU_AFFINITY
-XMRIG_PRINT_TIME=$XMRIG_PRINT_TIME
-XMRIG_HEALTH_PRINT_TIME=$XMRIG_HEALTH_PRINT_TIME
-XMRIG_DONATE_LEVEL=$XMRIG_DONATE_LEVEL
-XMRIG_HUGE_PAGES_JIT=$XMRIG_HUGE_PAGES_JIT
-POOL_GPU=$POOL_GPU
-ALGO_GPU=$ALGO_GPU
-LOL_WORKER_NAME=$LOL_WORKER_NAME
-LOL_API_PORT=$LOL_API_PORT
-LOL_EXTRA_ARGS=$LOL_EXTRA_ARGS
-EOF
+  save_profile_env
 }
 
 load_profile_config() {
@@ -478,9 +510,10 @@ show_current_config() {
 
 setup_profile() {
   local total_cpu cpu_percent percent_default cpu_power_mode
-  local core_options=() selected_core_count i
+  local selected_core_count
   total_cpu=$(detect_logical_cpu)
   build_core_groups
+  build_core_limit_options
   panel_title "Setup Wizard"
   printf "%sIsi kosong untuk pakai nilai lama.%s\n" "$C_DIM" "$C_RESET"
   COIN=$(prompt_default "Coin payout" "$COIN")
@@ -505,11 +538,7 @@ setup_profile() {
   fi
   choose_option "Pilih CPU priority" "1" "2" "3" "4" "5"
   XMRIG_CPU_PRIORITY="$CHOOSE_RESULT"
-  core_options=("Auto / semua core")
-  for ((i = 0; i < ${#CORE_GROUP_LABELS[@]}; i++)); do
-    core_options+=("Pakai $((i + 1)) core pertama - ${CORE_GROUP_LABELS[$i]}")
-  done
-  choose_option "Pilih batas core CPU" "${core_options[@]}"
+  choose_option "Pilih batas core CPU" "${CORE_LIMIT_OPTIONS[@]}"
   if [[ "$CHOOSE_RESULT" == "Auto / semua core" ]]; then
     XMRIG_CPU_AFFINITY=""
   else
@@ -535,11 +564,12 @@ setup_profile() {
 }
 
 select_saved_profile() {
-  local profiles profile_options=()
-  while IFS= read -r p; do
-    [[ -n "$p" ]] && profile_options+=("$p")
+  local profile_options=()
+  local profile_name
+  while IFS= read -r profile_name; do
+    [[ -n "$profile_name" ]] && profile_options+=("$profile_name")
   done <<EOF
-$(list_profiles)
+$(collect_profile_options)
 EOF
 
   if [[ ${#profile_options[@]} -eq 0 ]]; then
